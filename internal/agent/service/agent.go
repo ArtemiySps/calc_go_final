@@ -1,179 +1,119 @@
 package agent
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
+	"net"
 	"sync"
 	"time"
 
 	"github.com/ArtemiySps/calc_go_final/internal/agent/config"
 	"github.com/ArtemiySps/calc_go_final/pkg/models"
 	"go.uber.org/zap"
+
+	pb "github.com/ArtemiySps/calc_go_final/proto"
+	"google.golang.org/grpc"
 )
 
 type Agent struct {
-	Client *http.Client
 	Config *config.Config
 	log    *zap.Logger
+
+	resp AgResponse
+
+	pb.CalcServiceServer
 }
 
-func NewAgent(client *http.Client, cfg *config.Config, logger *zap.Logger) *Agent {
+type AgResponse struct {
+	result float32
+	err    error
+}
+
+func NewAgent(cfg *config.Config, logger *zap.Logger) *Agent {
 	return &Agent{
-		Client: client,
 		Config: cfg,
 		log:    logger,
 	}
 }
 
-// отправляет GET-запрос оркестратору для получения задачи
-func (a *Agent) GetTask() (models.Task, error) {
-	a.log.Info("GET-request to orkestrator")
+func (a *Agent) Calculation(ctx context.Context, in *pb.TaskRequest) (*pb.ResResponse, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := &sync.WaitGroup{}
+	resultChan := make(chan float32, 1)
+	errorChan := make(chan error, 1)
 
-	req, err := http.NewRequest("GET", "http://localhost:"+a.Config.OrkestratorPort+"/internal/task", nil)
-	if err != nil {
-		return models.Task{}, err
-	}
+	a.log.Info("got task. calculating...")
 
-	res, err := a.Client.Do(req)
-	if err != nil {
-		return models.Task{}, err
-	}
-	defer res.Body.Close()
+	wg.Add(a.Config.ComputingPower)
+	go func() {
+		defer wg.Done()
 
-	if res.StatusCode != http.StatusOK {
-		switch res.StatusCode {
-		case http.StatusNotFound:
-			return models.Task{}, models.ErrNoTasks
-		default:
-			return models.Task{}, fmt.Errorf("ошибка при GET-запросе. Статус: %d", res.StatusCode)
+		for range a.Config.ComputingPower {
+			go a.Worker(ctx, in, resultChan, errorChan)
 		}
+	}()
+
+	select {
+	case res := <-resultChan:
+		cancel()
+		a.resp.result = res
+	case err := <-errorChan:
+		cancel()
+		a.resp.err = err
 	}
+	wg.Wait()
 
-	var task models.Task
-	err = json.NewDecoder(res.Body).Decode(&task)
-	if err != nil {
-		return models.Task{}, err
-	}
+	a.log.Info("calculating completed! waiting for the next task...")
 
-	fmt.Println(task, "asdasd")
-
-	return task, nil
+	return &pb.ResResponse{Res: float32(a.resp.result)}, a.resp.err
 }
 
 // воркер
-func (a *Agent) Calculate(ctx context.Context, task models.Task, resultChan chan<- float64, errorChan chan<- error) {
-	time.Sleep(time.Duration(task.Operation_time) * time.Millisecond)
+func (a *Agent) Worker(ctx context.Context, in *pb.TaskRequest, resultChan chan<- float32, errorChan chan<- error) {
+	time.Sleep(time.Duration(a.Config.OperationTimes[in.Opr]) * time.Millisecond)
 
 	select {
 	case <-ctx.Done():
 		return
 	default:
-		switch task.Operation {
+		switch in.Opr {
 		case "+":
-			resultChan <- task.Arg1 + task.Arg2
+			resultChan <- in.Arg1 + in.Arg2
 		case "-":
-			resultChan <- task.Arg1 - task.Arg2
+			resultChan <- in.Arg1 - in.Arg2
 		case "*":
-			resultChan <- task.Arg1 * task.Arg2
+			resultChan <- in.Arg1 * in.Arg2
 		case "/":
-			if task.Arg2 == 0 {
+			if in.Arg2 == 0 {
 				errorChan <- models.ErrDivisionByZero
 			}
-			resultChan <- task.Arg1 / task.Arg2
+			resultChan <- in.Arg1 / in.Arg2
 		default:
 			errorChan <- models.ErrUnexpectedSymbol
 		}
-
 	}
 }
 
-// отправляет POST-запрос со структурой Task, где уже заполнено поле Result/Error
-func (a *Agent) PostResult(task models.Task) error {
-	data, err := json.Marshal(task)
+func RunServer(cfg *config.Config, logger *zap.Logger) error {
+	logger.Info("Server (agent) is starting on port: " + cfg.AgentPort + " and host: " + cfg.AgentHost)
+
+	addr := fmt.Sprintf("%s:%s", cfg.AgentHost, cfg.AgentPort)
+	lis, err := net.Listen("tcp", addr)
+
 	if err != nil {
-		return nil
+		logger.Info("")
+		return models.ErrStartingListener
 	}
 
-	req, err := http.NewRequest("POST", "http://localhost:"+a.Config.OrkestratorPort+"/internal/task", bytes.NewBuffer(data))
-	if err != nil {
-		return err
+	grpcServer := grpc.NewServer()
+
+	calcServiceAgent := NewAgent(cfg, logger)
+
+	pb.RegisterCalcServiceServer(grpcServer, calcServiceAgent)
+
+	if err := grpcServer.Serve(lis); err != nil {
+		return models.ErrServingGRPC
 	}
-
-	res, err := a.Client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("ошибка при отправке результата оркестратору. Статус: %d", res.StatusCode)
-	}
-
-	return nil
-}
-
-func (a *Agent) Run() error {
-	ticker := time.NewTicker(a.Config.GetTaskInterval)
-	defer ticker.Stop()
-
-	a.log.Info("ticker for GET-requests started")
-	for range ticker.C {
-		task, err := a.GetTask()
-		if err != nil {
-			switch err {
-			case models.ErrNoTasks:
-				continue
-			default:
-				return err
-			}
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		wg := &sync.WaitGroup{}
-		resultChan := make(chan float64, 1)
-		errorChan := make(chan error, 1)
-
-		wg.Add(a.Config.ComputingPower)
-		go func() {
-			defer wg.Done()
-
-			for range a.Config.ComputingPower {
-				go a.Calculate(ctx, task, resultChan, errorChan)
-			}
-		}()
-
-		select {
-		case res := <-resultChan:
-			cancel()
-			task.Status = models.StatusCompleted
-			task.Result = res
-		case err := <-errorChan:
-			cancel()
-			task.Status = models.StatusFailed
-			task.Error = err.Error()
-		}
-		wg.Wait()
-
-		fmt.Println(task)
-
-		if err := a.PostResult(task); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (a *Agent) RunServer() error {
-	a.log.Info("Server (agent) starting on port " + a.Config.AgentPort)
-
-	if err := a.Run(); err != nil {
-		return err
-	}
-
-	http.ListenAndServe(":"+a.Config.AgentPort, nil)
 	return nil
 }
 

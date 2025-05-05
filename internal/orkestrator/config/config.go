@@ -3,18 +3,18 @@ package config
 import (
 	"os"
 	"strconv"
-	"time"
 
+	"github.com/ArtemiySps/calc_go_final/pkg/models"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	AdditionTime       time.Duration
-	SubtractionTime    time.Duration
-	MultiplicationTime time.Duration
-	DivisionTime       time.Duration
+	OperationTimes map[string]int
 
 	OrkestratorPort string
+
+	AgentPort string
+	AgentHost string
 }
 
 func NewConfig() (*Config, error) {
@@ -23,22 +23,34 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
-	additionTime, _ := strconv.Atoi(os.Getenv("TIME_ADDITION_MS"))
-	substractionTime, _ := strconv.Atoi(os.Getenv("TIME_SUBTRACTION_MS"))
-	multiplicationTime, _ := strconv.Atoi(os.Getenv("TIME_MULTIPLICATIONS_MS"))
-	divisionTime, _ := strconv.Atoi(os.Getenv("TIME_DIVISIONS_MS"))
+	operationTimes := make(map[string]int)
+	operationTimes["+"], err = strconv.Atoi(os.Getenv("TIME_ADDITION_MS"))
+	if err != nil {
+		return nil, models.ErrAdittionTime
+	}
+	operationTimes["-"], err = strconv.Atoi(os.Getenv("TIME_SUBTRACTION_MS"))
+	if err != nil {
+		return nil, models.ErrSubtracrionTime
+	}
+	operationTimes["*"], err = strconv.Atoi(os.Getenv("TIME_MULTIPLICATION_MS"))
+	if err != nil {
+		return nil, models.ErrMultiplicationTime
+	}
+	operationTimes["/"], err = strconv.Atoi(os.Getenv("TIME_DIVISION_MS"))
+	if err != nil {
+		return nil, models.ErrDivisionTime
+	}
 
 	port := os.Getenv("PORT_ORKESTRATOR")
+	agentPort := os.Getenv("PORT_AGENT")
+	agentHost := os.Getenv("HOST_AGENT")
 
 	cfg := &Config{
-		AdditionTime:       time.Duration(additionTime),
-		SubtractionTime:    time.Duration(substractionTime),
-		MultiplicationTime: time.Duration(multiplicationTime),
-		DivisionTime:       time.Duration(divisionTime),
-		OrkestratorPort:    port,
+		OperationTimes:  operationTimes,
+		OrkestratorPort: port,
+		AgentPort:       agentPort,
+		AgentHost:       agentHost,
 	}
 
 	return cfg, nil
 }
-
-// также, можно обрабатывать ошибки ввода некорректных значений для переменных

@@ -3,17 +3,18 @@ package config
 import (
 	"os"
 	"strconv"
-	"time"
 
+	"github.com/ArtemiySps/calc_go_final/pkg/models"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	GetTaskInterval time.Duration
-	ComputingPower  int
+	ComputingPower int
+	OperationTimes map[string]int
 
 	OrkestratorPort string
 	AgentPort       string
+	AgentHost       string
 }
 
 func NewConfig() (*Config, error) {
@@ -22,20 +23,37 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
-	getTaskInterval, _ := strconv.Atoi(os.Getenv("GET_TASK_INTERVAL_MS"))
 	computingPower, _ := strconv.Atoi(os.Getenv("COMPUTING_POWER"))
 
 	orkestratorPort := os.Getenv("PORT_ORKESTRATOR")
 	agentPort := os.Getenv("PORT_AGENT")
+	agentHost := os.Getenv("HOST_AGENT")
+
+	operationTimes := make(map[string]int)
+	operationTimes["+"], err = strconv.Atoi(os.Getenv("TIME_ADDITION_MS"))
+	if err != nil {
+		return nil, models.ErrAdittionTime
+	}
+	operationTimes["-"], err = strconv.Atoi(os.Getenv("TIME_SUBTRACTION_MS"))
+	if err != nil {
+		return nil, models.ErrSubtracrionTime
+	}
+	operationTimes["*"], err = strconv.Atoi(os.Getenv("TIME_MULTIPLICATION_MS"))
+	if err != nil {
+		return nil, models.ErrMultiplicationTime
+	}
+	operationTimes["/"], err = strconv.Atoi(os.Getenv("TIME_DIVISION_MS"))
+	if err != nil {
+		return nil, models.ErrDivisionTime
+	}
 
 	cfg := &Config{
-		GetTaskInterval: time.Duration(getTaskInterval) * time.Millisecond,
 		ComputingPower:  computingPower,
+		OperationTimes:  operationTimes,
 		OrkestratorPort: orkestratorPort,
 		AgentPort:       agentPort,
+		AgentHost:       agentHost,
 	}
 
 	return cfg, nil
 }
-
-// также, можно обрабатывать ошибки ввода некорректных значений для переменных

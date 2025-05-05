@@ -1,15 +1,18 @@
 package service
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
-	"time"
+
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/ArtemiySps/calc_go_final/internal/orkestrator/config"
 	"github.com/ArtemiySps/calc_go_final/pkg/models"
-	"go.uber.org/zap"
+	pb "github.com/ArtemiySps/calc_go_final/proto"
 )
 
 type TaskStorage struct {
@@ -28,6 +31,10 @@ type Orkestrator struct {
 
 	ExpressionStorage *ExpressionStorage
 	TaskStorage       *TaskStorage
+
+	conn       *grpc.ClientConn
+	conn_err   error
+	grpcClient pb.CalcServiceClient
 }
 
 func NewExpressionStorage() *ExpressionStorage {
@@ -53,7 +60,23 @@ func NewOrkestrator(cfg *config.Config, logger *zap.Logger) *Orkestrator {
 	}
 }
 
-func (o *Orkestrator) GetOperationTime(op rune) time.Duration {
+func (o *Orkestrator) ConnectToServer() error {
+	o.log.Info("Client (orkestrator) is connecting to server (agent) with server address: " + o.Config.AgentHost + ":" + o.Config.AgentPort)
+
+	addr := fmt.Sprintf("%s:%s", o.Config.AgentHost, o.Config.AgentPort)
+
+	o.conn, o.conn_err = grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	if o.conn_err != nil {
+		o.conn_err = nil
+		return models.ErrConnectingGRPC
+	}
+
+	o.grpcClient = pb.NewCalcServiceClient(o.conn)
+	return nil
+}
+
+/*func (o *Orkestrator) GetOperationTime(op rune) time.Duration {
 	switch op {
 	case '+':
 		return o.Config.AdditionTime
@@ -66,7 +89,7 @@ func (o *Orkestrator) GetOperationTime(op rune) time.Duration {
 	default:
 		return 0
 	}
-}
+}*/
 
 func (o *Orkestrator) AddExpressionToStorage() string {
 	expression := models.Expression{
@@ -94,7 +117,7 @@ func (o *Orkestrator) GetExpression(id string) models.Expression {
 	return expression
 }
 
-func (o *Orkestrator) ChangeExpressionStatus(id string, res float64, ok bool) {
+func (o *Orkestrator) ChangeExpressionStatus(id string, res float64, ok bool, err string) {
 	o.ExpressionStorage.mu.Lock()
 	defer o.ExpressionStorage.mu.Unlock()
 	if ok {
@@ -107,6 +130,8 @@ func (o *Orkestrator) ChangeExpressionStatus(id string, res float64, ok bool) {
 	}
 	if entry, okk := o.ExpressionStorage.Expressions[id]; okk {
 		entry.Status = models.StatusFailed
+		entry.Error = err
+		o.ExpressionStorage.Expressions[id] = entry
 	}
 }
 
@@ -117,10 +142,10 @@ func (o *Orkestrator) ChangeTask(id string, task models.Task) {
 	o.log.Info(id + ": task info changed")
 
 	o.TaskStorage.Tasks[id] = task
-	fmt.Println(o.TaskStorage.Tasks)
+	//fmt.Println(o.TaskStorage.Tasks)
 }
 
-func (o *Orkestrator) ChangeTaskStatus(id string, status string) {
+/*func (o *Orkestrator) ChangeTaskStatus(id string, status string) {
 	o.TaskStorage.mu.Lock()
 	defer o.TaskStorage.mu.Unlock()
 
@@ -129,7 +154,7 @@ func (o *Orkestrator) ChangeTaskStatus(id string, status string) {
 		o.TaskStorage.Tasks[id] = entry
 		return
 	}
-}
+}*/
 
 func (o *Orkestrator) AddTaskToStorage(task models.Task) {
 	o.TaskStorage.mu.Lock()
@@ -146,7 +171,7 @@ func (o *Orkestrator) DeleteTaskFromStorage(id string) {
 	delete(o.TaskStorage.Tasks, id)
 }
 
-func (o *Orkestrator) GiveTask() (models.Task, error) {
+/*func (o *Orkestrator) GiveTask() (models.Task, error) {
 	if len(o.TaskStorage.Tasks) > 0 {
 		for id, t := range o.TaskStorage.Tasks {
 			if t.Status == models.StatusNeedToSend {
@@ -162,9 +187,9 @@ func (o *Orkestrator) GiveTask() (models.Task, error) {
 		}
 	}
 	return models.Task{}, models.ErrNoTasks
-}
+}*/
 
-func (o *Orkestrator) WaitForResult(id string) (float64, string) {
+/*func (o *Orkestrator) WaitForResult(id string) (float64, string) {
 	ticker := time.NewTicker(time.Duration(1000) * time.Millisecond)
 	defer ticker.Stop()
 
@@ -182,7 +207,7 @@ func (o *Orkestrator) WaitForResult(id string) (float64, string) {
 		o.TaskStorage.mu.Unlock()
 	}
 	return 0, "ticker stoped"
-}
+}*/
 
 func (o *Orkestrator) ExpressionOperations(expr string) (float64, error) {
 	id := o.AddExpressionToStorage()
@@ -200,7 +225,7 @@ func (o *Orkestrator) ExpressionOperations(expr string) (float64, error) {
 			stack = append(stack, float64(num))
 		} else {
 			if len(stack) < 2 {
-				o.ChangeExpressionStatus(id, 0, false)
+				o.ChangeExpressionStatus(id, 0, false, models.ErrBadExpression.Error())
 				return 0, models.ErrBadExpression
 			}
 
@@ -209,36 +234,45 @@ func (o *Orkestrator) ExpressionOperations(expr string) (float64, error) {
 			stack = stack[:len(stack)-2]
 
 			task := models.Task{
-				ID:     models.MakeID(),
-				Status: models.StatusNeedToSend,
+				ID: models.MakeID(),
 
-				Arg1:           operand1,
-				Arg2:           operand2,
-				Operation:      string(char),
-				Operation_time: int(o.GetOperationTime(char)),
+				Arg1:      operand1,
+				Arg2:      operand2,
+				Operation: string(char),
 			}
 
 			o.AddTaskToStorage(task)
-			fmt.Println(o.TaskStorage.Tasks)
+			//fmt.Println(o.TaskStorage.Tasks)
 
-			res, err := o.WaitForResult(task.ID)
-			if err != "" {
-				o.log.Info(id + ": status changed")
-				o.ChangeExpressionStatus(id, 0, false)
-				return 0, errors.New(err)
+			resp, err := o.grpcClient.Calculation(context.Background(), &pb.TaskRequest{
+				Arg1: float32(operand1),
+				Arg2: float32(operand2),
+				Opr:  string(char),
+			})
+
+			if err != nil {
+				task.Error = err.Error()
+				o.ChangeTask(task.ID, task)
+
+				o.log.Info(id + ": expression status changed")
+				o.ChangeExpressionStatus(id, 0, false, err.Error())
+				return 0, err
 			}
-			fmt.Println("result:", res)
+			//fmt.Println("result:", resp.Res)
 
-			stack = append(stack, res)
+			task.Result = float64(resp.Res)
+			o.ChangeTask(task.ID, task)
+
+			stack = append(stack, float64(resp.Res))
 		}
 	}
 
-	o.log.Info(id + ": status changed")
+	o.log.Info(id + ": expression status changed")
 	if len(stack) != 1 {
-		o.ChangeExpressionStatus(id, 0, false)
+		o.ChangeExpressionStatus(id, 0, false, models.ErrBadExpression.Error())
 		return 0, models.ErrBadExpression
 	}
 
-	o.ChangeExpressionStatus(id, stack[0], true)
+	o.ChangeExpressionStatus(id, stack[0], true, "")
 	return stack[0], nil
 }

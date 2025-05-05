@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"net/http"
 
 	"github.com/ArtemiySps/calc_go_final/internal/agent/config"
 	a "github.com/ArtemiySps/calc_go_final/internal/agent/service"
@@ -17,9 +16,7 @@ func main() {
 
 	logger := models.MakeLogger()
 
-	api := a.NewAgent(http.DefaultClient, cfg, logger)
-
-	err = api.RunServer()
+	err = a.RunServer(cfg, logger) // запускаем gRPC сервер (агент)
 	if err != nil {
 		log.Fatal(err.Error())
 	}

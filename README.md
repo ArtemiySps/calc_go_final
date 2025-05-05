@@ -1,27 +1,27 @@
 # Калькулятор на языке Golang
 
-Не смотри на название коммитов, сейчас уже всё работает :)
-
 Калькулятор основан на взаимодействии двух серверов: оркестратора и агента, где оркестратор делит входное математическое выражение на отдельные задачи, а агент эти задачи вычисляет.
+
+Взаимодействие оркестратора и агента происходит по gRPC, а связь пользователя с оркестратором - по HTTP.
 
 
 ## Запуск
 
 1. Клонируйте библиотеку через git clone 
 
-2. Перейдите в папку с программой (calc_go_2.0) в двух cmd-терминалах:
+2. Перейдите в папку с программой (calc_go_final) в двух cmd-терминалах:
 ```
-cd calc_go_2.0
-```
-
-3.  В одном из них введите команду, которая запустит сервер оркестратора:
-```
-go run cmd/orkestrator/main.go
+cd calc_go_final
 ```
 
-4. В другом введите команду, которая запустит сервер агента:
+3.  В одном из них введите команду, которая запустит gRPC-сервер агента:
 ```
-go run cmd/agent/main.go
+go run ./cmd/agent/main.go
+```
+
+4. В другом введите команду, которая подключит оркестратор к gRPC-серверу агента и запустит http-сервер для взаимодействия с пользователем:
+```
+go run ./cmd/orkestrator/main.go
 ```
 
 4. Откройте cmd-терминал и введите команду:
@@ -36,12 +36,12 @@ curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application
 
 7. Чтобы получить все выражения, используйте в отдельном терминале команду:
 ```
-curl -X http://localhost:8081/api/v1/expressions
+curl -X POST http://localhost:8081/api/v1/expressions
 ```
 
-8. Чтобы получить выражение по его ID, используйте команду (вместо id_0 можно вписать любой из имеющихся ID):
+8. Чтобы получить выражение по его ID, используйте команду:
 ```
-curl -X http://localhost:8081/api/v1/expression/(любой ID, полученный из expressions)
+curl -X POST http://localhost:8081/api/v1/expression/(любой ID, полученный из expressions)
 ```
 
 ## Примеры запросов
@@ -58,20 +58,20 @@ curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application
 ```
 curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -d "{\"expression\":\"1+2/0\"}"
 ```
-Результат: деление на ноль
+Результат: division by zero
 
 ```
 curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -d "{\"expression\":\"1+2+a\"}"
 ```
-Результат: некорректный символ
+Результат: unexpected symbol
 
 ```
 curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -d "{\"expression\":\"1++2\"}"
 ```
-Результат: некорректное выражение
+Результат: incorrect expression
 
 
-## Принцип работы
+## Принцип работы (not updated)
 
 В калькуляторе взаимодействуют пользователь, оркестратор и агент.
 [[readme_assets/Scheme.png]]
@@ -89,7 +89,7 @@ curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application
 В процессе работы сервера можно также просмотреть хранилище выражений, и найти выражение по ID с помощью запросов end-поинтами "/api/v1/expressions" и "/api/v1/expression/:id" соответственно.
 
 
-## Структура проекта
+## Структура проекта (not updated)
 ```
 calc_go_2.0
 ├── cmd
@@ -148,13 +148,14 @@ calc_go_2.0
 
 Переменные среды и их значения по умолчанию (значения можно изменить в .env):
 ```
-TIME_ADDITION_MS=5000          //время выполнения сложения в мс
-TIME_SUBTRACTION_MS=6000       //время выполнения вычитания в мс
-TIME_MULTIPLICATIONS_MS=7000   //время выполнения умножения в мс
-TIME_DIVISIONS_MS=8000         //время выполнения деления в мс
+TIME_ADDITION_MS=3000           #
+TIME_SUBTRACTION_MS=3000        # времена выполнения
+TIME_MULTIPLICATION_MS=3000     # математических операций
+TIME_DIVISION_MS=2000           #
 
-GET_TASK_INTERVAL_MS=500       //интервал, через который агент делает GET-запросы к оркестратору в мс
-COMPUTING_POWER=3              //количество запускаемых воркеров
+COMPUTING_POWER=1               # количество запускаемых воркеров
 
-PORT_ORKESTRATOR=8081		   //порт сервера оркестратора
-PORT_AGENT=8080				   //порт сервера агента
+PORT_ORKESTRATOR=8081           # порт для запуска http сервера-оркестратора
+
+PORT_AGENT=8080                 # порт для запуска grpc сервера-агента
+HOST_AGENT=localhost            # хост для запуска grpc сервера-агента

@@ -2,7 +2,6 @@ package http
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/ArtemiySps/calc_go_final/pkg/models"
@@ -11,7 +10,6 @@ import (
 
 type Service interface {
 	ExpressionOperations(expr string) (float64, error)
-	GiveTask() (models.Task, error)
 	ChangeTask(id string, task models.Task)
 	GetAllExpressions() map[string]models.Expression
 	GetExpression(id string) models.Expression
@@ -33,14 +31,6 @@ func NewTransportHttp(s Service, port string, logger *zap.Logger) *TransportHttp
 	http.HandleFunc("/api/v1/calculate", t.OrkestratorHandler)
 	http.HandleFunc("/api/v1/expressions", t.GetAllExpressionsHandler)
 	http.HandleFunc("/api/v1/expression/", t.GetExpressionHandler)
-	http.HandleFunc("/internal/task", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			t.GiveTaskHandler(w, r)
-		case http.MethodPost:
-			t.GetResultHandler(w, r)
-		}
-	})
 
 	return t
 }
@@ -88,7 +78,7 @@ func (t *TransportHttp) OrkestratorHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func (t *TransportHttp) GiveTaskHandler(w http.ResponseWriter, r *http.Request) {
+/*func (t *TransportHttp) GiveTaskHandler(w http.ResponseWriter, r *http.Request) {
 	t.log.Info("Ready to give task")
 
 	task, err := t.s.GiveTask()
@@ -97,31 +87,19 @@ func (t *TransportHttp) GiveTaskHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	fmt.Println(task, "jkljkljkl")
-
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(task)
-	// data, err := json.Marshal(struct {
-	// 	Task models.Task `json:"task"`
-	// }{
-	// 	Task: task,
-	// })
+
 	if err != nil {
 		t.log.Error(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// _, err = w.Write(data)
-	// if err != nil {
-	// 	t.log.Error(err.Error())
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
 	t.log.Info("Gave task " + task.ID)
-}
+}*/
 
-func (t *TransportHttp) GetResultHandler(w http.ResponseWriter, r *http.Request) {
+/*func (t *TransportHttp) GetResultHandler(w http.ResponseWriter, r *http.Request) {
 	t.log.Info("Ready to get result")
 
 	defer r.Body.Close()
@@ -137,7 +115,7 @@ func (t *TransportHttp) GetResultHandler(w http.ResponseWriter, r *http.Request)
 
 	t.s.ChangeTask(result.ID, result)
 	t.log.Info("Got result for task " + result.ID)
-}
+}*/
 
 func (t *TransportHttp) GetAllExpressionsHandler(w http.ResponseWriter, r *http.Request) {
 	expressions := t.s.GetAllExpressions()
