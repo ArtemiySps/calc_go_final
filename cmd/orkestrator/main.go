@@ -15,7 +15,10 @@ func main() {
 		log.Fatal(err.Error())
 	}
 	logger := models.MakeLogger()
-	api := service.NewOrkestrator(cfg, logger) // создаем экземпляр оркестратора
+	api, err := service.NewOrkestrator(cfg, logger) // создаем экземпляр оркестратора
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 
 	api.ConnectToServer() // коннектимся к gRPC серверу (агенту)
 

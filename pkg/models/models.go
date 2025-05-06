@@ -11,6 +11,7 @@ const (
 // структура для состояния выражения
 type Expression struct {
 	ID     string  `json:"id"`
+	Expr   string  `json:"expression"`
 	Status string  `json:"status"`
 	Result float64 `json:"result"`
 	Error  string  `json:"error"`

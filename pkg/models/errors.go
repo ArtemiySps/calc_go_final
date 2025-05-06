@@ -16,8 +16,12 @@ var (
 	ErrUnexpectedSymbol = errors.New("unexpected symbol")
 	ErrBadExpression    = errors.New("incorrect expression")
 
-	//ошибки grpc
+	// ошибки grpc
 	ErrStartingListener = errors.New("error starting tcp listener")
 	ErrServingGRPC      = errors.New("error serving grpc")
 	ErrConnectingGRPC   = errors.New("could not connect to grpc server")
+
+	// ошибки database
+	ErrDatabaseCreating = errors.New("error creating sql database")
+	ErrPingContext      = errors.New("database not active")
 )

@@ -11,8 +11,8 @@ import (
 type Service interface {
 	ExpressionOperations(expr string) (float64, error)
 	ChangeTask(id string, task models.Task)
-	GetAllExpressions() map[string]models.Expression
-	GetExpression(id string) models.Expression
+	GetAllExpressions() (map[string]models.Expression, error)
+	GetExpression(id string) (models.Expression, error)
 }
 
 type TransportHttp struct {
@@ -78,47 +78,13 @@ func (t *TransportHttp) OrkestratorHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-/*func (t *TransportHttp) GiveTaskHandler(w http.ResponseWriter, r *http.Request) {
-	t.log.Info("Ready to give task")
-
-	task, err := t.s.GiveTask()
-	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(task)
-
+func (t *TransportHttp) GetAllExpressionsHandler(w http.ResponseWriter, r *http.Request) {
+	expressions, err := t.s.GetAllExpressions()
 	if err != nil {
 		t.log.Error(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	t.log.Info("Gave task " + task.ID)
-}*/
-
-/*func (t *TransportHttp) GetResultHandler(w http.ResponseWriter, r *http.Request) {
-	t.log.Info("Ready to get result")
-
-	defer r.Body.Close()
-
-	var result models.Task
-
-	err := json.NewDecoder(r.Body).Decode(&result)
-	if err != nil {
-		t.log.Error(err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	t.s.ChangeTask(result.ID, result)
-	t.log.Info("Got result for task " + result.ID)
-}*/
-
-func (t *TransportHttp) GetAllExpressionsHandler(w http.ResponseWriter, r *http.Request) {
-	expressions := t.s.GetAllExpressions()
 	response := struct {
 		Exprs map[string]models.Expression `json:"expressions"`
 	}{
@@ -130,7 +96,12 @@ func (t *TransportHttp) GetAllExpressionsHandler(w http.ResponseWriter, r *http.
 }
 
 func (t *TransportHttp) GetExpressionHandler(w http.ResponseWriter, r *http.Request) {
-	expression := t.s.GetExpression(r.URL.Path[len("/api/v1/expression/"):])
+	expression, err := t.s.GetExpression(r.URL.Path[len("/api/v1/expression/"):])
+	if err != nil {
+		t.log.Error(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	response := struct {
 		Exprs models.Expression `json:"expression"`
 	}{
