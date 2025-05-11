@@ -18,6 +18,10 @@ type User struct {
 	OriginPassword string
 }
 
+func (o *Orkestrator) SetUsersDB(db *sql.DB) {
+	o.users = db
+}
+
 func comparePassword(password_u1 string, u2 User) error {
 	err := compare(u2.Password, password_u1)
 	if err != nil {
@@ -117,7 +121,7 @@ func giveToken(login string) (string, error) {
 func (o *Orkestrator) Register(login string, password string) error {
 	var err error
 
-	o.users, err = sql.Open("sqlite3", "./db/store.db")
+	o.users, err = sql.Open("sqlite3", o.Config.UsersDBPath)
 	if err != nil {
 		return err
 	}
@@ -154,7 +158,7 @@ func (o *Orkestrator) Register(login string, password string) error {
 func (o *Orkestrator) Login(login string, password string) (string, error) {
 	var err error
 
-	o.users, err = sql.Open("sqlite3", "./db/store.db")
+	o.users, err = sql.Open("sqlite3", o.Config.UsersDBPath)
 	if err != nil {
 		return "", err
 	}
@@ -192,7 +196,7 @@ func (o *Orkestrator) GetLogin(token string) (string, error) {
 	var login string
 	var err error
 
-	o.users, err = sql.Open("sqlite3", "./db/store.db")
+	o.users, err = sql.Open("sqlite3", o.Config.UsersDBPath)
 	if err != nil {
 		return "", err
 	}

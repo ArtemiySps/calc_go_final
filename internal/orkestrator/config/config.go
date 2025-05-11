@@ -15,6 +15,8 @@ type Config struct {
 
 	AgentPort string
 	AgentHost string
+
+	UsersDBPath string
 }
 
 func NewConfig() (*Config, error) {
@@ -50,6 +52,7 @@ func NewConfig() (*Config, error) {
 		OrkestratorPort: port,
 		AgentPort:       agentPort,
 		AgentHost:       agentHost,
+		UsersDBPath:     "./db/store.db",
 	}
 
 	return cfg, nil

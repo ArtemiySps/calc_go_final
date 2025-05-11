@@ -31,4 +31,5 @@ var (
 	ErrIncorrectPassword = errors.New("incorrecct password")
 	ErrUserAlreadyExists = errors.New("user already exists")
 	ErrUserNotRegistered = errors.New("user is not registered")
+	ErrInvalidToken      = errors.New("invalid token")
 )

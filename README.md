@@ -25,81 +25,109 @@ go run ./cmd/agent/main.go
 go run ./cmd/orkestrator/main.go
 ```
 
-4. Откройте cmd-терминал и введите команду:
+4. Откройте cmd-терминал и проведите регистрацию:
 ```
-curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -d "{\"expression\":\"1+2+3+4+5\"}"
-```
-
-6. Для того, чтобы вычислять одновременно два и более выражений, каждое новое следует запускать командой в отдельном терминале (либо, если вычисление предыдущего выражения завершилось - в том же):
-```
-curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -d "{\"expression\":\"5-4-3-2-1\"}"
+curl -X POST http://localhost:8081/api/v1/register -H "Content-Type:application/json" -d "{\"login\":\"user_1\",\"password\":\"123\"}"
 ```
 
-7. Чтобы получить все выражения, используйте в отдельном терминале команду:
+5. Затем необходимо войти под логином и паролем:
 ```
-curl -X POST http://localhost:8081/api/v1/expressions
-```
-
-8. Чтобы получить выражение по его ID, используйте команду:
-```
-curl -X POST http://localhost:8081/api/v1/expression/(любой ID, полученный из expressions)
+curl -X POST http://localhost:8081/api/v1/login -H "Content-Type:application/json" -d "{\"login\":\"user_1\",\"password\":\"123\"}"
 ```
 
-9. Чтобы проверить сохранность выражений после перезагрузки калькулятора, рекомендуется завершить процесс (Ctrl+C) в окнах, где запускались сервера, а затем запустить их снова и повторно получить выражения
+6. Выданный токен скопируйте (без кавычек), он будет использоваться далее при каждом запросе
+
+7. Чтобы вычислить выражение используйте, вставив токен, этот запрос:
+```
+curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -H "Authorization:<token>" -d "{\"expression\":\"1+2+3+4\"}"
+```
+
+8. Чтобы проверить параллельность запросов от разных пользователей, проделайте те же операции, но в другом терминале, зарегистрировав другого пользователя. Для второго пользователя можно использовать запрос:
+```
+curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -H "Authorization:<token>" -d "{\"expression\":\"5-4-3-2-1\"}"
+```
+
+9. Далее используйте этот запрос, использовав сначала токен первого пользователя, а затем второго
+```
+curl -X POST http://localhost:8081/api/v1/expressions -H "Authorization:<token>"
+```
+
+10. Вы увидите, что для первого пользователя будет показана информация о выражении 1+2+3+4+5, а для второго 5-4-3-2-1
+
+11. Скопируйте любой ID выражения, и вставьте вместе с токеном этого же пользователя в данный запрос:
+```
+curl -X POST http://localhost:8081/api/v1/expression/<id> -H "Authorization:<token>"
+```
+
+12. Чтобы очистить базу данных выражения используйте с соответствующим токеном:
+```
+curl -X POST http://localhost:8081/api/v1/clear -H "Authorization:<token>"
+```
+
+13. Проверить, очистилась ли база данных, можно запросом выражений. Должна вернуться пустая табличка:
+```
+curl -X POST http://localhost:8081/api/v1/expressions -H "Authorization:<token>"
+```
+
+14. Чтобы проверить сохранность выражений (где они не были удалены) после перезагрузки калькулятора, рекомендуется завершить процесс (Ctrl+C) в окнах, где запускались сервера, а затем запустить их снова и повторно получить выражения (можно с теми же токенами)
 
 ## Примеры запросов
 ```
-curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -d "{\"expression\":\"1+2+3\"}"
+curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -H "Authorization:<token>" -d "{\"expression\":\"1+2+3\"}"
 ```
 Результат: 6
 
 ```
-curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -d "{\"expression\":\"1*2+(3+4-5+(6/2))\"}"
+curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -H "Authorization:<token>" -d "{\"expression\":\"1*2+(3+4-5+(6/2))\"}"
 ```
 Результат: 1
 
 ```
-curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -d "{\"expression\":\"1+2/0\"}"
+curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -H "Authorization:<token>" -d "{\"expression\":\"1+2/0\"}"
 ```
 Результат: division by zero
 
 ```
-curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -d "{\"expression\":\"1+2+a\"}"
+curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -H "Authorization:<token>" -d "{\"expression\":\"1+2+a\"}"
 ```
 Результат: unexpected symbol
 
 ```
-curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -d "{\"expression\":\"1++2\"}"
+curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -H "Authorization:<token>" -d "{\"expression\":\"1++2\"}"
 ```
 Результат: incorrect expression
 
 
-## Принцип работы (not updated)
+## Принцип работы
 
 В калькуляторе взаимодействуют пользователь, оркестратор и агент.
 [[readme_assets/Scheme.png]]
 
-Оркестратор принимает от пользователя выражение, добавляет его в хранилище, присваивая ID, представляет в виде обратной польской записи. Затем начинается деление выражения на простейшие задачи (задача представлена структурой Task, имеющей поля ID, Status, Arg1, Arg2, Operation, Operation_time, Result, Error). Только что сформированный task отправляется в хранилище задач. Функция деления на задачи уходит в ожидание до тех пор, пока статус у отправленной им задачи не поменяется на "completed".
+Для того, чтобы пользователь смог взаимодействовать с калькулятором, ему необходимо зарегистрироваться и получить по своему логину и паролю токен. Регистрация происходит по ручке "/api/v1/register", вход по ручке "/api/v1/login". Данные о пользователях сохраняются в СУБД (пароли хешируются).
 
-Всё это время, сразу после запуска сервера агента, он отправляет оркестратору GET-запросы каждые 500 ms (можно изменить в .env), желая получить задачу. При каждом запросе идёт проверка на наличие нерешённых задач (с Status == "need to send") в хранилище задач. Если такие имеются, то агенту выдаётся первая нерешенная задача из стека задач. 
+После входа пользователю показывается JWT-токен, который необходимо использовать при каждом следующем запросе. Проверка токена при запросах реализована через middleware.
 
-Попав к агенту, задача решается определённым количеством параллельно запущенных воркеров. Их количество задаётся переменной среды COMPUTING_POWER. В калькуляторе имитируются долгие вычисления, поэтому переменными среды задано время выполнения для каждой математической операции. Как только один из воркеров завершит вычисление задачи, останавливается работа всех остальных, а результат (либо ошибка, если таковая обнаружилась в процессе вычисления) отправляется обратно оркестратору. Следующим GET-запросом агент берет следующую нерешённую задачу.
+Оркестратор принимает от пользователя математическое выражение для решения, добавляет его в базу данных SQLlite, присваивая ID, и представляет в виде обратной польской записи. Затем начинается деление выражения на простейшие выражения из двух аргументов и знака операции. Это простейшее выражение по gRPC отправляется агенту, который запускает COMPUTING_POWER воркеров-калькуляторов. Результат возвращается оркестратору. 
 
-Получив результат, оркестратор изменяет вычисленную задачу в хранилище, добавляя в соответствующие поля результат/ошибку, а также меняет статус на "completed". Функция деления на задачи выходит из режима ожидания и анализирует результаты: если ошибки не возникло - подставляем результат вычислений в следующую задачу, если ошибка всё же возникла - возвращаем её пользователю.
+Такие простейшие выражения отправляются до тех пор, пока всё выражение не будет пересчитано. После этого статус выражения в базе данных меняется с pending на completed (или failed, если произошла какая-либо ошибка, к примеру деление на ноль), данные о результате/ошибке выводятся пользователю и также записываются в СУБД.
 
-Как только всё выражение будет вычислено без ошибок - выводим результат пользователю.
+В процессе работы можно просмотреть хранилище выражений, и найти выражение по ID с помощью запросов end-поинтами "/api/v1/expressions" и "/api/v1/expression/:id" соответственно. При этом пользователю будут выведены только те математические выражения, которые были отправлены на решение под этим же логином. 
 
-В процессе работы сервера можно также просмотреть хранилище выражений, и найти выражение по ID с помощью запросов end-поинтами "/api/v1/expressions" и "/api/v1/expression/:id" соответственно.
+Разные пользователи могут одновременно посылать запросы оркестратору, и их обработка будет происходить параллельно. 
 
+По ручке "/api/v1/clear" (добавил от себя) из базы данных будут удалены все данные об отправленных выражениях (короче можно зачистить историю :))) )
 
-## Структура проекта (not updated)
+## Структура проекта
 ```
-calc_go_2.0
+calc_go_final
 ├── cmd
 │   ├── agent
 │   │   └── main.go
 │   └── orkestrator
 │       └── main.go
+├── db
+│   ├── expressions.db
+│   └── store.db
 ├── env 
 │   └── .env
 ├── internal
@@ -113,15 +141,26 @@ calc_go_2.0
 │       ├── config
 │       │   └── config.go
 │       ├── http
-│       │   └── http.go
+│       │   ├── auth.go
+│       │   ├── http_test.go
+│       │   ├── orkestrator.go
+│       │   └── run.go
 │       └── service
-│           ├── orkestrator.go
-│           └── orkestrator_test.go
+│           ├── auth_test.go
+│           ├── auth.go
+│           ├── db_test.go
+│           ├── db.go
+│           ├── orkestrator_test.go
+│           └── orkestrator.go
 ├── pkg
 │   └── models
 │       ├── errors.go
 │       ├── models.go
 │       └── operations.go
+├── proto
+│   ├── calc_grpc.pb.go
+│   ├── calc.pb.go
+│   └── calc.proto
 ├── go.mod
 └── go.sum
 ```
@@ -136,8 +175,14 @@ calc_go_2.0
 
 #### internal/orkestrator - файлы оркестратора
 - config/config.go - конфигурирование оркестратора
-- http/http.go - реализация хендлеров
-- service/orkestrator.go - функции оркестратора (деление выражения на задачи, добавление выражений и задач в хранилище, изменение параметров выражений и задач, получение всех выражений и задач из хранилища)
+- http:
+    - auth.go - хендлеры аутентификации пользователя
+    - orkestrator.go - хендлеры оркестратора
+    - run.go - создание и запуск сервера
+- service:
+    - auth.go - функции аутентификации пользователя
+    - db.go - функции работы с СУБД выражений
+    - orkestrator.go - функции оркестратора
 
 #### env
 - .env - переменные среды
@@ -147,11 +192,13 @@ calc_go_2.0
 - models.go - структуры
 - operations.go - функции создания ID через uuid, преобразования выражения в обратную польскую запись
 
+### proto - прото-файлы
+
 ## Переменные среды
 
 Переменные среды и их значения по умолчанию (значения можно изменить в .env):
 ```
-TIME_ADDITION_MS=3000           #
+TTIME_ADDITION_MS=3000          #
 TIME_SUBTRACTION_MS=3000        # времена выполнения
 TIME_MULTIPLICATION_MS=3000     # математических операций
 TIME_DIVISION_MS=2000           #
@@ -163,16 +210,5 @@ PORT_ORKESTRATOR=8081           # порт для запуска http серве
 PORT_AGENT=8080                 # порт для запуска grpc сервера-агента
 HOST_AGENT=localhost            # хост для запуска grpc сервера-агента
 
-
-
-curl -X POST http://localhost:8081/api/v1/register -H "Content-Type:application/json" -d "{\"login\":\" \",\"password\":\" \"}"
-
-curl -X POST http://localhost:8081/api/v1/login -H "Content-Type:application/json" -d "{\"login\":\" \",\"password\":\" \"}"
-
-curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -H "Authorization:<token>" -d "{\"expression\":\" \"}" 
-
-curl -X POST http://localhost:8081/api/v1/expressions -H "Authorization:<token>"
-
-curl -X POST http://localhost:8081/api/v1/expression/<id> -H "Authorization:<token>"
-
-curl -X POST http://localhost:8081/api/v1/clear -H "Authorization:<token>"
+TABLE_FORMAT=true               # вывод выражений по api/v1/expressions в удобном табличном варианте
+```
