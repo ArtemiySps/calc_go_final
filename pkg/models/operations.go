@@ -24,35 +24,72 @@ func precedence(op rune) int {
 func InfixToPostfix(expression string) (string, error) {
 	var stack []rune
 	var output strings.Builder
+	var numBuffer strings.Builder
 
 	for _, char := range expression {
-		if unicode.IsDigit(char) {
-			output.WriteRune(char)
-		} else if char == '(' {
+		switch {
+		case unicode.IsDigit(char):
+			numBuffer.WriteRune(char)
+
+		case char == '(':
+			if numBuffer.Len() > 0 {
+				output.WriteString(numBuffer.String())
+				output.WriteRune(' ')
+				numBuffer.Reset()
+			}
 			stack = append(stack, char)
-		} else if char == ')' {
+
+		case char == ')':
+			if numBuffer.Len() > 0 {
+				output.WriteString(numBuffer.String())
+				output.WriteRune(' ')
+				numBuffer.Reset()
+			}
+
 			for len(stack) > 0 && stack[len(stack)-1] != '(' {
 				output.WriteRune(stack[len(stack)-1])
+				output.WriteRune(' ')
 				stack = stack[:len(stack)-1]
 			}
+			if len(stack) == 0 {
+				return "", ErrBadExpression
+			}
 			stack = stack[:len(stack)-1]
-		} else if char == '+' || char == '-' || char == '*' || char == '/' {
+
+		case char == '+' || char == '-' || char == '*' || char == '/':
+			if numBuffer.Len() > 0 {
+				output.WriteString(numBuffer.String())
+				output.WriteRune(' ')
+				numBuffer.Reset()
+			}
+
 			for len(stack) > 0 && precedence(stack[len(stack)-1]) >= precedence(char) {
 				output.WriteRune(stack[len(stack)-1])
+				output.WriteRune(' ')
 				stack = stack[:len(stack)-1]
 			}
 			stack = append(stack, char)
-		} else {
+
+		default:
 			return "", ErrUnexpectedSymbol
 		}
 	}
 
+	if numBuffer.Len() > 0 {
+		output.WriteString(numBuffer.String())
+		output.WriteRune(' ')
+	}
+
 	for len(stack) > 0 {
+		if stack[len(stack)-1] == '(' {
+			return "", ErrBadExpression
+		}
 		output.WriteRune(stack[len(stack)-1])
+		output.WriteRune(' ')
 		stack = stack[:len(stack)-1]
 	}
 
-	return output.String(), nil
+	return strings.TrimSpace(output.String()), nil
 }
 
 // функция для создания ID

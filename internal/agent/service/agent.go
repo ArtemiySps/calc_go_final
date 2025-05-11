@@ -95,7 +95,7 @@ func (a *Agent) Worker(ctx context.Context, in *pb.TaskRequest, resultChan chan<
 }
 
 func RunServer(cfg *config.Config, logger *zap.Logger) error {
-	logger.Info("Server (agent) is starting on port: " + cfg.AgentPort + " and host: " + cfg.AgentHost)
+	logger.Info("Server (agent) is starting on address: " + cfg.AgentHost + ":" + cfg.AgentPort)
 
 	addr := fmt.Sprintf("%s:%s", cfg.AgentHost, cfg.AgentPort)
 	lis, err := net.Listen("tcp", addr)

@@ -162,3 +162,17 @@ PORT_ORKESTRATOR=8081           # порт для запуска http серве
 
 PORT_AGENT=8080                 # порт для запуска grpc сервера-агента
 HOST_AGENT=localhost            # хост для запуска grpc сервера-агента
+
+
+
+curl -X POST http://localhost:8081/api/v1/register -H "Content-Type:application/json" -d "{\"login\":\" \",\"password\":\" \"}"
+
+curl -X POST http://localhost:8081/api/v1/login -H "Content-Type:application/json" -d "{\"login\":\" \",\"password\":\" \"}"
+
+curl -X POST http://localhost:8081/api/v1/calculate -H "Content-Type:application/json" -H "Authorization:<token>" -d "{\"expression\":\" \"}" 
+
+curl -X POST http://localhost:8081/api/v1/expressions -H "Authorization:<token>"
+
+curl -X POST http://localhost:8081/api/v1/expression/<id> -H "Authorization:<token>"
+
+curl -X POST http://localhost:8081/api/v1/clear -H "Authorization:<token>"

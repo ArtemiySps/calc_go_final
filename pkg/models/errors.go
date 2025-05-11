@@ -10,6 +10,7 @@ var (
 	ErrSubtracrionTime    = errors.New("environment variable for subtraction wasn't set correctly")
 	ErrMultiplicationTime = errors.New("environment variable for multiplication wasn't set correctly")
 	ErrDivisionTime       = errors.New("environment variable for division wasn't set correctly")
+	ErrTableFormat        = errors.New("environment variable TABLE_FORMAT wasn't set correctly")
 
 	// ошибки в математическом выражении:
 	ErrDivisionByZero   = errors.New("division by zero")
@@ -24,4 +25,10 @@ var (
 	// ошибки database
 	ErrDatabaseCreating = errors.New("error creating sql database")
 	ErrPingContext      = errors.New("database not active")
+	ErrCannotFindObject = errors.New("can't find expression")
+
+	// ошибки auth
+	ErrIncorrectPassword = errors.New("incorrecct password")
+	ErrUserAlreadyExists = errors.New("user already exists")
+	ErrUserNotRegistered = errors.New("user is not registered")
 )
